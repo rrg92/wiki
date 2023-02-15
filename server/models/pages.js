@@ -148,6 +148,7 @@ module.exports = class Page extends Model {
       isPublished: 'boolean',
       publishEndDate: 'string',
       publishStartDate: 'string',
+      contentType: 'string',
       render: 'string',
       tags: [
         {
@@ -702,7 +703,7 @@ module.exports = class Page extends Model {
     const destinationHash = pageHelper.generateHash({ path: opts.destinationPath, locale: opts.destinationLocale, privateNS: opts.isPrivate ? 'TODO' : '' })
 
     // -> Move page
-    const destinationTitle = (page.title === page.path ? opts.destinationPath : page.title)
+    const destinationTitle = (page.title === _.last(page.path.split('/')) ? _.last(opts.destinationPath.split('/')) : page.title)
     await WIKI.models.pages.query().patch({
       path: opts.destinationPath,
       localeCode: opts.destinationLocale,
@@ -722,6 +723,7 @@ module.exports = class Page extends Model {
       ...page,
       destinationPath: opts.destinationPath,
       destinationLocaleCode: opts.destinationLocale,
+      title: destinationTitle,
       destinationHash
     })
 
@@ -765,16 +767,7 @@ module.exports = class Page extends Model {
    * @returns {Promise} Promise with no value
    */
   static async deletePage(opts) {
-    var filterOps = {};
-    
-    if(_.has(opts,'id')){
-      filterOps = opts.id;
-    } else {
-      filterOps = {path:opts.path,localeCode:opts.locale}
-    }
-	
-	let page = await WIKI.models.pages.getPageFromDb(filterOps)
-	
+    const page = await WIKI.models.pages.getPageFromDb(_.has(opts, 'id') ? opts.id : opts)
     if (!page) {
       throw new WIKI.Error.PageNotFound()
     }
@@ -942,9 +935,8 @@ module.exports = class Page extends Model {
           // -> Save render to cache
           await WIKI.models.pages.savePageToCache(page)
         } else {
-          // -> No render? Possible duplicate issue
-          /* TODO: Detect duplicate and delete */
-          throw new Error('Error while fetching page. Duplicate entry detected. Reload the page to try again.')
+          // -> No render? Last page render failed...
+          throw new Error('Page has no rendered version. Looks like the Last page render failed. Try to edit the page and save it again.')
         }
       }
     }
@@ -1051,6 +1043,7 @@ module.exports = class Page extends Model {
       isPublished: page.isPublished === 1 || page.isPublished === true,
       publishEndDate: page.publishEndDate,
       publishStartDate: page.publishStartDate,
+      contentType: page.contentType,
       render: page.render,
       tags: page.tags.map(t => _.pick(t, ['tag', 'title'])),
       title: page.title,
