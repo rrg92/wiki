@@ -254,10 +254,7 @@ module.exports = class Page extends Model {
     }
 
     // -> Check for page access
-    if (!WIKI.auth.checkAccess(opts.user, ['write:pages'], {
-      locale: opts.locale,
-      path: opts.path
-    })) {
+    if (!WIKI.auth.checkAccess(opts.user, ['write:pages'], opts)) {
       throw new WIKI.Error.PageDeleteForbidden()
     }
 
@@ -274,10 +271,7 @@ module.exports = class Page extends Model {
 
     // -> Format CSS Scripts
     let scriptCss = ''
-    if (WIKI.auth.checkAccess(opts.user, ['write:styles'], {
-      locale: opts.locale,
-      path: opts.path
-    })) {
+    if (WIKI.auth.checkAccess(opts.user, ['write:styles'], opts)) {
       if (!_.isEmpty(opts.scriptCss)) {
         scriptCss = new CleanCSS({ inline: false }).minify(opts.scriptCss).styles
       } else {
@@ -287,10 +281,7 @@ module.exports = class Page extends Model {
 
     // -> Format JS Scripts
     let scriptJs = ''
-    if (WIKI.auth.checkAccess(opts.user, ['write:scripts'], {
-      locale: opts.locale,
-      path: opts.path
-    })) {
+    if (WIKI.auth.checkAccess(opts.user, ['write:scripts'], opts)) {
       scriptJs = opts.scriptJs || ''
     }
 
@@ -368,16 +359,14 @@ module.exports = class Page extends Model {
    */
   static async updatePage(opts) {
     // -> Fetch original page
-    const ogPage = await WIKI.models.pages.query().findById(opts.id)
+	const ogPage = await WIKI.models.pages.getPageFromDb(opts.id)
+	
     if (!ogPage) {
       throw new Error('Invalid Page Id')
     }
 
     // -> Check for page access
-    if (!WIKI.auth.checkAccess(opts.user, ['write:pages'], {
-      locale: ogPage.localeCode,
-      path: ogPage.path
-    })) {
+    if (!WIKI.auth.checkAccess(opts.user, ['write:pages'], ogPage)) {
       throw new WIKI.Error.PageUpdateForbidden()
     }
 
@@ -401,10 +390,7 @@ module.exports = class Page extends Model {
 
     // -> Format CSS Scripts
     let scriptCss = _.get(ogPage, 'extra.css', '')
-    if (WIKI.auth.checkAccess(opts.user, ['write:styles'], {
-      locale: opts.locale,
-      path: opts.path
-    })) {
+    if (WIKI.auth.checkAccess(opts.user, ['write:styles'], ogPage)) {
       if (!_.isEmpty(opts.scriptCss)) {
         scriptCss = new CleanCSS({ inline: false }).minify(opts.scriptCss).styles
       } else {
@@ -414,10 +400,7 @@ module.exports = class Page extends Model {
 
     // -> Format JS Scripts
     let scriptJs = _.get(ogPage, 'extra.js', '')
-    if (WIKI.auth.checkAccess(opts.user, ['write:scripts'], {
-      locale: opts.locale,
-      path: opts.path
-    })) {
+    if (WIKI.auth.checkAccess(opts.user, ['write:scripts'], ogPage)) {
       scriptJs = opts.scriptJs || ''
     }
 
@@ -461,10 +444,7 @@ module.exports = class Page extends Model {
     // -> Perform move?
     if ((opts.locale && opts.locale !== page.localeCode) || (opts.path && opts.path !== page.path)) {
       // -> Check target path access
-      if (!WIKI.auth.checkAccess(opts.user, ['write:pages'], {
-        locale: opts.locale,
-        path: opts.path
-      })) {
+      if (!WIKI.auth.checkAccess(opts.user, ['write:pages'], opts)) {
         throw new WIKI.Error.PageMoveForbidden()
       }
 
@@ -495,7 +475,8 @@ module.exports = class Page extends Model {
    */
   static async convertPage(opts) {
     // -> Fetch original page
-    const ogPage = await WIKI.models.pages.query().findById(opts.id)
+    const ogPage = await WIKI.models.pages.getPageFromDb(opts.id)
+	
     if (!ogPage) {
       throw new Error('Invalid Page Id')
     }
@@ -505,10 +486,7 @@ module.exports = class Page extends Model {
     }
 
     // -> Check for page access
-    if (!WIKI.auth.checkAccess(opts.user, ['write:pages'], {
-      locale: ogPage.localeCode,
-      path: ogPage.path
-    })) {
+    if (!WIKI.auth.checkAccess(opts.user, ['write:pages'], ogPage)) {
       throw new WIKI.Error.PageUpdateForbidden()
     }
 
@@ -662,15 +640,16 @@ module.exports = class Page extends Model {
    * @returns {Promise} Promise with no value
    */
   static async movePage(opts) {
-    let page
-    if (_.has(opts, 'id')) {
-      page = await WIKI.models.pages.query().findById(opts.id)
+    var filterOps = {};
+    
+    if(_.has(opts,'id')){
+      filterOps = opts.id;
     } else {
-      page = await WIKI.models.pages.query().findOne({
-        path: opts.path,
-        localeCode: opts.locale
-      })
+      filterOps = {path:opts.path,localeCode:opts.locale}
     }
+	
+	let page = await WIKI.models.pages.getPageFromDb(filterOps)
+	
     if (!page) {
       throw new WIKI.Error.PageNotFound()
     }
@@ -691,13 +670,12 @@ module.exports = class Page extends Model {
     }
 
     // -> Check for source page access
-    if (!WIKI.auth.checkAccess(opts.user, ['manage:pages'], {
-      locale: page.localeCode,
-      path: page.path
-    })) {
+    if (!WIKI.auth.checkAccess(opts.user, ['manage:pages'], page)) {
       throw new WIKI.Error.PageMoveForbidden()
     }
     // -> Check for destination page access
+	// here dont need check for tags, because not tag being changed.
+	// We already  validated the tag in previous check.
     if (!WIKI.auth.checkAccess(opts.user, ['write:pages'], {
       locale: opts.destinationLocale,
       path: opts.destinationPath
@@ -787,16 +765,22 @@ module.exports = class Page extends Model {
    * @returns {Promise} Promise with no value
    */
   static async deletePage(opts) {
-    const page = await WIKI.models.pages.getPageFromDb(_.has(opts, 'id') ? opts.id : opts);
+    var filterOps = {};
+    
+    if(_.has(opts,'id')){
+      filterOps = opts.id;
+    } else {
+      filterOps = {path:opts.path,localeCode:opts.locale}
+    }
+	
+	let page = await WIKI.models.pages.getPageFromDb(filterOps)
+	
     if (!page) {
       throw new WIKI.Error.PageNotFound()
     }
 
     // -> Check for page access
-    if (!WIKI.auth.checkAccess(opts.user, ['delete:pages'], {
-      locale: page.locale,
-      path: page.path
-    })) {
+    if (!WIKI.auth.checkAccess(opts.user, ['delete:pages'], page)) {
       throw new WIKI.Error.PageDeleteForbidden()
     }
 

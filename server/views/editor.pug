@@ -3,9 +3,15 @@ extends master.pug
 block head
   if injectCode.css
     style(type='text/css')!= injectCode.css
+    
+  link(type='text/css' rel='stylesheet' href='/pwt/PwtEditor.css')
 
 block body
   #root
+    script(src="https://cdn.ckeditor.com/4.19.1/full/ckeditor.js")
+    script(src="/pwt/constants.js")
+    script(src="/pwt/ckeditor/PwtEditor/PwtCkEditor5.js")
+    script(src="/pwt/PwtEditor.js")
     editor(
       :page-id=page.id
       locale=page.localeCode

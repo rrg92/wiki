@@ -1,7 +1,8 @@
 <template lang='pug'>
   .editor-ckeditor
     div(ref='toolbarContainer')
-    div.contents(ref='editor')
+    div#PwtEditAreaContainer(class="contents")
+        div(ref='editor')
     v-system-bar.editor-ckeditor-sysbar(dark, status, color='grey darken-3')
       .caption.editor-ckeditor-sysbar-locale {{locale.toUpperCase()}}
       .caption.px-3 /{{path}}
@@ -63,22 +64,16 @@ export default {
     }
   },
   async mounted () {
-  
-	var opts = {
-		vuec:this
-		,lodash:{
-			debounce: _.debounce
-		}
-		,beautify
-	}
+    this.$store.set('editor/editorKey', 'ckeditor')
 	
-	PwtSetupCkEditorWiki(opts);
-	return;
+	
+	PwtSetupCkEditor({
+		 vue: this
+		 ,beauty: beautify
+	})
+	
 
-	
-//    this.$store.set('editor/editorKey', 'ckeditor')
-//
-//
+//	/*
 //    this.editor = await DecoupledEditor.create(this.$refs.editor, {
 //      language: this.locale,
 //      placeholder: 'Type the page content here',
@@ -104,19 +99,37 @@ export default {
 //      }
 //    })
 //    this.$refs.toolbarContainer.appendChild(this.editor.ui.view.toolbar.element)
+//	*/
+//	
+//	/*
+//	this.editor = CKEDITOR.replace(
+//		this.$refs.editor
+//		,{
+//			height:'60%'
+//		}
+//	)
+//	*/
 //	
 //	// Add the upload defined in custom.js!
 //	// PwtCkUploadAdp is defined in custom.js function included in master.pug.
-//	this.editor.plugins.get('FileRepository').createUploadAdapter = (l) => new PwtCkUploadAdp(l);
+//	//this.editor.plugins.get('FileRepository').createUploadAdapter = (l) => new PwtCkUploadAdp(l);
 //
 //    if (this.mode !== 'create') {
 //      this.editor.setData(this.$store.get('editor/content'))
 //    }
 //
+//	/*
 //    this.editor.model.document.on('change:data', _.debounce(evt => {
 //      this.$store.set('editor/content', beautify(this.editor.getData(), { indent_size: 2, end_with_newline: true }))
 //    }, 300))
-//
+//	*/
+//	
+//	var me = this;
+//	this.editor.on('change',function(e){
+//		me.$store.set('editor/content', beautify(e.editor.getData(), { indent_size: 2, end_with_newline: true }))
+//	})
+//	
+//	
 //    this.$root.$on('editorInsert', opts => {
 //      switch (opts.kind) {
 //        case 'IMAGE':
@@ -148,6 +161,8 @@ export default {
 //    this.$root.$on('overwriteEditorContent', () => {
 //      this.editor.setData(this.$store.get('editor/content'))
 //    })
+	
+	
   },
   beforeDestroy () {
     if (this.editor) {

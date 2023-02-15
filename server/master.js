@@ -36,14 +36,18 @@ module.exports = async () => {
   const app = express()
   WIKI.app = app
   app.use(compression())
+  
+
+
+
 
   // ----------------------------------------
   // Security
   // ----------------------------------------
 
   app.use(mw.security)
-  app.use(cors({ origin: false }))
-  app.options('*', cors({ origin: false }))
+  app.use(cors({ origin: true }))
+  app.options('*', cors({ origin: true }))
   if (WIKI.config.security.securityTrustProxy) {
     app.enable('trust proxy')
   }
@@ -161,8 +165,32 @@ module.exports = async () => {
   })
 
   app.use('/', ctrl.auth)
+  
+  
+  
+  // ----------------------------------------
+  // Power Tuning Customized!
+  // ----------------------------------------
+	  if(!process.env.POWERDOCS_HOME){
+		  throw 'INVALID_POWERDOCS_HOME';
+	  }
+	  
+	  const POWERDOCS_HOME = path.resolve(process.env.POWERDOCS_HOME);
+	  const POWERDOCSJS_PATH = path.join(POWERDOCS_HOME,'powerdocsjs');
+	  
+	  WIKI.PowerDocs = {
+		  Home			: POWERDOCS_HOME
+		  ,PowerDocsJs	: POWERDOCSJS_PATH
+	  };
+	  
+	  const PowerDocsJs = require(POWERDOCSJS_PATH);
+  
   app.use('/', ctrl.upload)
   app.use('/', ctrl.common)
+  
+  
+
+	
 
   // ----------------------------------------
   // Error handling

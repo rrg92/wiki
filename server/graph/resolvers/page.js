@@ -15,11 +15,9 @@ module.exports = {
      * PAGE HISTORY
      */
     async history(obj, args, context, info) {
-      const page = await WIKI.models.pages.query().select('path', 'localeCode').findById(args.id)
-      if (WIKI.auth.checkAccess(context.req.user, ['read:history'], {
-        path: page.path,
-        locale: page.localeCode
-      })) {
+      const page = await WIKI.models.pages.getPageFromDb(args.id)
+	  
+      if (WIKI.auth.checkAccess(context.req.user, ['read:history'], page)) {
         return WIKI.models.pageHistory.getHistory({
           pageId: args.id,
           offsetPage: args.offsetPage || 0,
@@ -33,11 +31,9 @@ module.exports = {
      * PAGE VERSION
      */
     async version(obj, args, context, info) {
-      const page = await WIKI.models.pages.query().select('path', 'localeCode').findById(args.pageId)
-      if (WIKI.auth.checkAccess(context.req.user, ['read:history'], {
-        path: page.path,
-        locale: page.localeCode
-      })) {
+      const page = await WIKI.models.pages.getPageFromDb(args.pageId)
+	  
+      if (WIKI.auth.checkAccess(context.req.user, ['read:history'], page)) {
         return WIKI.models.pageHistory.getVersion({
           pageId: args.pageId,
           versionId: args.versionId
@@ -51,6 +47,8 @@ module.exports = {
      */
     async search (obj, args, context) {
       if (WIKI.data.searchEngine) {
+		
+		args._context = context;
         const resp = await WIKI.data.searchEngine.query(args.query, args)
         return {
           ...resp,
@@ -136,6 +134,7 @@ module.exports = {
         return WIKI.auth.checkAccess(context.req.user, ['read:pages'], {
           path: r.path,
           locale: r.locale
+		  ,tags: r.tags // Check tags!
         })
       }).map(r => ({
         ...r,
@@ -152,14 +151,13 @@ module.exports = {
     async single (obj, args, context, info) {
       let page = await WIKI.models.pages.getPageFromDb(args.id)
       if (page) {
-        if (WIKI.auth.checkAccess(context.req.user, ['manage:pages', 'delete:pages'], {
-          path: page.path,
-          locale: page.localeCode
-        })) {
+        if (WIKI.auth.checkAccess(context.req.user, ['manage:pages', 'delete:pages'], page)) {
           return {
             ...page,
             locale: page.localeCode,
-            editor: page.editorKey
+            editor: page.editorKey,
+			scriptJs: page.extra.js,
+			scriptCss: page.extra.css
           }
         } else {
           throw new WIKI.Error.PageViewForbidden()
@@ -179,10 +177,7 @@ module.exports = {
         ])
         .withGraphJoined('tags')
       const allTags = _.filter(pages, r => {
-        return WIKI.auth.checkAccess(context.req.user, ['read:pages'], {
-          path: r.path,
-          locale: r.locale
-        })
+        return WIKI.auth.checkAccess(context.req.user, ['read:pages'], r)
       }).flatMap(r => r.tags)
       return _.orderBy(_.uniqBy(allTags, 'id'), ['tag'], ['asc'])
     },
@@ -210,10 +205,7 @@ module.exports = {
           })
         })
       const allTags = _.filter(pages, r => {
-        return WIKI.auth.checkAccess(context.req.user, ['read:pages'], {
-          path: r.path,
-          locale: r.locale
-        })
+        return WIKI.auth.checkAccess(context.req.user, ['read:pages'], r)
       }).flatMap(r => r.tags).map(t => t.tag)
       return _.uniq(allTags).slice(0, 5)
     },
@@ -256,10 +248,36 @@ module.exports = {
           }
         }
       }).orderBy([{ column: 'isFolder', order: 'desc' }, 'title'])
+	  
+	  // Bugfix: add tags in order to check permission just for the tags.
+	  // load the tags for all pages...
+	  // this can be a slow point if we have many pages.
+	  // TODO: See a way to bring tags from knex...
+	  var pageTags = {};
+	  var page;
+	  
+	  for(var i in results){
+		  r = results[i]
+		  if(!r.isFolder){
+			  page 						= await WIKI.models.pages.getPageFromDb(r.pageId);
+			  pageTags["page_"+r.pageId]	= {tags: page.tags};
+		  }
+	  }
+	  
+	  
       return results.filter(r => {
+		
+		// if is a page, the tag from list...
+		var tags = [];
+		var pageData = pageTags["page_"+r.pageId];
+		if(!r.isFolder && pageData){
+			tags = pageData.tags;
+		}
+		
         return WIKI.auth.checkAccess(context.req.user, ['read:pages'], {
           path: r.path,
           locale: r.localeCode
+		  ,tags: tags
         })
       }).map(r => ({
         ...r,
@@ -326,12 +344,10 @@ module.exports = {
      * CHECK FOR EDITING CONFLICT
      */
     async checkConflicts (obj, args, context, info) {
-      let page = await WIKI.models.pages.query().select('path', 'localeCode', 'updatedAt').findById(args.id)
+	  let page = await WIKI.models.pages.getPageFromDb(args.id)
+	  
       if (page) {
-        if (WIKI.auth.checkAccess(context.req.user, ['write:pages', 'manage:pages'], {
-          path: page.path,
-          locale: page.localeCode
-        })) {
+        if (WIKI.auth.checkAccess(context.req.user, ['write:pages', 'manage:pages'],page)) {
           return page.updatedAt > args.checkoutDate
         } else {
           throw new WIKI.Error.PageUpdateForbidden()
@@ -346,10 +362,7 @@ module.exports = {
     async conflictLatest (obj, args, context, info) {
       let page = await WIKI.models.pages.getPageFromDb(args.id)
       if (page) {
-        if (WIKI.auth.checkAccess(context.req.user, ['write:pages', 'manage:pages'], {
-          path: page.path,
-          locale: page.localeCode
-        })) {
+        if (WIKI.auth.checkAccess(context.req.user, ['write:pages', 'manage:pages'],page)) {
           return {
             ...page,
             tags: page.tags.map(t => t.tag),

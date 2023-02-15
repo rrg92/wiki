@@ -95,7 +95,19 @@ router.post('/u', (req, res, next) => {
     assetPath,
     user: req.user
   })
-  res.send('ok')
+  
+  
+  if(req.query.ex){
+	  res.json({
+			success: true
+			,FullPath		: '/'+assetPath
+			,FullPathEncoded: '/'+encodeURI(assetPath)
+	  })
+  } else {
+	 res.send('ok') 
+  }
+  
+  
 })
 
 router.get('/u', async (req, res, next) => {

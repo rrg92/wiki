@@ -261,6 +261,8 @@ type PageSearchResult {
   description: String!
   path: String!
   locale: String!
+  tags: [String!]
+  score: Float
 }
 
 type PageListItem {

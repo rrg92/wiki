@@ -217,6 +217,12 @@ module.exports = {
   checkAccess(user, permissions = [], page = false) {
     const userPermissions = user.permissions ? user.permissions : user.getGlobalPermissions()
 
+	var pageLocale = page.localeCode;
+	
+	if(!pageLocale && page.hasOwnProperty('locale')){
+		pageLocale = page.locale;
+	}
+
     // System Admin
     if (_.includes(userPermissions, 'manage:system')) {
       return true
@@ -243,7 +249,7 @@ module.exports = {
         const grpId = _.isObject(grp) ? _.get(grp, 'id', 0) : grp
         _.get(WIKI.auth.groups, `${grpId}.pageRules`, []).forEach(rule => {
           if (rule.locales && rule.locales.length > 0) {
-            if (!rule.locales.includes(page.locale)) { return }
+            if (!rule.locales.includes(pageLocale)) { return }
           }
           if (_.intersection(rule.roles, permissions).length > 0) {
             switch (rule.match) {
